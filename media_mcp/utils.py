@@ -19,6 +19,12 @@ def save_base64_to_file(b64_string: str, prefix: str = "input") -> Path:
         if "," in b64_string:
             b64_string = b64_string.split(",")[1]
         
+        # Add missing padding
+        b64_string = b64_string.strip()
+        padding = len(b64_string) % 4
+        if padding > 0:
+            b64_string += "=" * (4 - padding)
+            
         data = base64.b64decode(b64_string)
         # Determine extension based on prefix
         if any(x in prefix.lower() for x in ["img", "image", "edit", "pic"]):
@@ -38,22 +44,54 @@ def save_base64_to_file(b64_string: str, prefix: str = "input") -> Path:
         logger.error(f"Failed to save base64 to file: {e}")
         raise
 
-def resolve_input_to_base64(input_val: str) -> str:
+async def resolve_input_to_base64(input_val: str) -> str:
     """
-    Detects if the input is a local file path or a base64 string.
-    If it's a path and exists, reads it and returns base64.
-    If it's already base64, returns it as is.
+    Detects if the input is a local file path, a URL, or a base64 string.
+    Explicitly uses OS-level checks (pathlib.Path.is_file()) to confirm paths.
     """
     if not input_val:
         raise ValueError("Input is empty")
 
-    # Check if it looks like a path and exists
-    if input_val.startswith(("/", "./", "../")) or os.path.exists(input_val):
-        path = Path(input_val)
-        if path.exists():
-            return file_to_base64(path)
+    # 1. Cleaning and normalization
+    original_input = input_val
+    # Strip whitespace and common wrappings: quotes and brackets (for stringified lists)
+    input_val = input_val.strip().strip("'\"[]")
     
-    # Otherwise, assume it's already base64
+    if input_val != original_input:
+        logger.info(f"Cleaned input from '{original_input}' to '{input_val}'")
+
+    # 2. Check if it's a URL
+    if input_val.startswith(("http://", "https://")):
+        logger.info(f"Detected URL: {input_val}")
+        async with httpx.AsyncClient(timeout=config.REQUEST_TIMEOUT) as client:
+            resp = await client.get(input_val)
+            resp.raise_for_status()
+            logger.info(f"Successfully downloaded {len(resp.content)} bytes from URL")
+            return base64.b64encode(resp.content).decode("utf-8")
+
+    # 3. Strict Local Path Resolution (OS-level check)
+    # Check absolute path or relative to CWD
+    p = Path(input_val)
+    if p.is_file():
+        logger.info(f"Resolved path via OS: {p.absolute()}")
+        return file_to_base64(p)
+    
+    # Check relative to Assets directory
+    asset_p = config.ASSETS_DIR / input_val
+    if asset_p.is_file():
+        logger.info(f"Resolved path in assets: {asset_p.absolute()}")
+        return file_to_base64(asset_p)
+
+    # 4. Final heuristic check: if it LOOKS like a path but doesn't exist, we error
+    # instead of falling through to base64 which will cause obscure "padding" errors.
+    path_heuristics = ["/", "\\", ".png", ".jpg", ".jpeg", ".webp", ".wav", ".mp3"]
+    if any(h in input_val for h in path_heuristics):
+        err_msg = f"Path detected but file does not exist: '{input_val}'"
+        logger.error(err_msg)
+        raise FileNotFoundError(err_msg)
+    
+    # 5. Fallback: Assume raw base64 data
+    logger.info(f"Input treated as raw binary/base64 data (length: {len(input_val)})")
     return input_val
 
 def file_to_base64(file_path: Path) -> str:

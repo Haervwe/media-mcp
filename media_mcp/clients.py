@@ -110,7 +110,8 @@ class MediaClient:
         try:
             # Resolve all inputs to temporary files
             for idx, img_input in enumerate(image_list):
-                img_b64 = resolve_input_to_base64(img_input)
+                logger.info(f"Resolving image input {idx} (type: {type(img_input)}): {img_input}")
+                img_b64 = await resolve_input_to_base64(img_input)
                 prefix = "edit_source" if idx == 0 else f"edit_ref_{idx}"
                 temp_paths.append(save_base64_to_file(img_b64, prefix=prefix))
             
@@ -257,7 +258,7 @@ class MusicClient:
                 audio_path = Path(audio)
                 is_temp = False
             else:
-                audio_b64 = resolve_input_to_base64(audio)
+                audio_b64 = await resolve_input_to_base64(audio)
                 audio_path = save_base64_to_file(audio_b64, prefix="cover_source")
                 is_temp = True
             
