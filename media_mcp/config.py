@@ -34,4 +34,10 @@ class Config:
     # Music generation can be slow
     REQUEST_TIMEOUT = int(os.getenv("REQUEST_TIMEOUT", "300"))
 
+    # --- Model Unloading ---
+    # Comma-separated list of base URLs for llama-swap (e.g. http://localhost:4134)
+    LLAMA_UNLOAD = os.getenv("LLAMA_UNLOAD", "")
+    UNLOAD_WAIT_SECONDS = int(os.getenv("UNLOAD_WAIT_SECONDS", "2"))
+    MAX_UNLOAD_POLLS = int(os.getenv("MAX_UNLOAD_POLLS", "30"))
+
 config = Config()

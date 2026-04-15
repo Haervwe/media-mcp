@@ -6,6 +6,8 @@ import time
 import httpx
 import logging
 from pathlib import Path
+from fastmcp.utilities.types import Image, Audio
+from fastmcp.tools.base import ToolResult
 from .config import config
 
 logger = logging.getLogger(__name__)
@@ -59,21 +61,48 @@ def file_to_base64(file_path: Path) -> str:
     with open(file_path, "rb") as f:
         return base64.b64encode(f.read()).decode("utf-8")
 
-def format_output(file_path: Path, metadata: dict = None) -> dict:
-    """Formats the output based on RESPONSE_FORMAT."""
-    result = {
-        "status": "success",
-        "metadata": metadata or {}
-    }
-    
-    if config.RESPONSE_FORMAT == "base64":
-        result["data"] = file_to_base64(file_path)
+def format_output(file_path: Path, metadata: dict = None, message: str = "", response_format: str = "native") -> ToolResult:
+    """
+    Formats the output based on requested response_format.
+    - native: returns [Image/Audio/File object, success message with absolute path]
+    - legacy: returns the old structured dictionary (for frontend compatibility)
+    """
+    abs_path = str(file_path.absolute())
+    filename = file_path.name
+    metadata = metadata or {}
+    msg = message or f"Successfully generated {filename}"
+    full_msg = f"{msg}\nAbsolute Path: {abs_path}"
+
+    if response_format == "legacy":
+        legacy_dict = {
+            "status": "success",
+            "message": msg,
+            "filename": filename,
+            "metadata": metadata
+        }
+        if config.RESPONSE_FORMAT == "base64":
+            legacy_dict["data"] = file_to_base64(file_path)
+            legacy_dict["path"] = None
+        else:
+            legacy_dict["path"] = abs_path
+            legacy_dict["data"] = None
+        
+        # Return as structured content
+        return ToolResult(structured_content=legacy_dict)
+
+    # Default to native format
+    # Determine type based on extension
+    suffix = file_path.suffix.lower()
+    if suffix in [".png", ".jpg", ".jpeg", ".webp"]:
+        media_obj = Image(path=abs_path)
+    elif suffix in [".wav", ".mp3", ".ogg", ".m4a", ".flac"]:
+        media_obj = Audio(path=abs_path)
     else:
-        result["path"] = str(file_path)
-    
-    # Also provide the filename for convenience
-    result["filename"] = file_path.name
-    return result
+        # Fallback to general text/path if unknown
+        return ToolResult(content=[full_msg])
+
+    return ToolResult(content=[media_obj, full_msg])
+
 
 async def poll_ace_step_job(job_id: str, client: httpx.AsyncClient, headers: dict = None) -> dict:
     """Polls ACE Step UI for job completion."""
@@ -114,3 +143,61 @@ async def poll_ace_step_job(job_id: str, client: httpx.AsyncClient, headers: dic
                 raise
     
     raise TimeoutError(f"Music generation timed out after {config.REQUEST_TIMEOUT}s")
+
+async def unload_models():
+    """
+    Triggers model unloading for specified endpoints to free VRAM.
+    Uses LLAMA_UNLOAD config (comma-separated URLs).
+    Polls the /running endpoint to ensure VRAM is cleared.
+    """
+    if not config.LLAMA_UNLOAD:
+        return
+
+    # User provides base URLs (e.g. http://localhost:4134)
+    base_urls = [u.strip().rstrip("/") for u in config.LLAMA_UNLOAD.split(",") if u.strip()]
+    
+    if not base_urls:
+        return
+
+    logger.info(f"Triggering model unload for base URLs: {base_urls}")
+    
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        # 1. Trigger unloads
+        for base_url in base_urls:
+            unload_url = f"{base_url}/unload"
+            try:
+                logger.info(f"Sending unload request to {unload_url}...")
+                resp = await client.get(unload_url)
+                logger.info(f"Unload request to {unload_url} returned: {resp.status_code} {resp.text[:50]}")
+            except Exception as e:
+                logger.error(f"Failed to send unload request to {unload_url}: {e}")
+
+        # 2. Polling for empty status (llama-swap /running endpoint)
+        polling_urls = [f"{base_url}/running" for base_url in base_urls]
+
+        logger.info(f"Polling status at: {polling_urls}")
+        for _ in range(config.MAX_UNLOAD_POLLS):
+            all_clear = True
+            for p_url in polling_urls:
+                try:
+                    resp = await client.get(p_url)
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        running = data.get("running", [])
+                        if running:
+                            all_clear = False
+                            logger.info(f"Model(s) still running: {[m.get('model') for m in running]}. Waiting...")
+                            break
+                    else:
+                        logger.warning(f"Status check to {p_url} returned {resp.status_code}")
+                except Exception as e:
+                    logger.error(f"Error checking status at {p_url}: {e}")
+                    all_clear = False # Assume not clear on error
+            
+            if all_clear:
+                logger.info("All models unloaded successfully.")
+                return
+            
+            await asyncio.sleep(config.UNLOAD_WAIT_SECONDS)
+        
+        logger.warning(f"Unload polling timed out after {config.MAX_UNLOAD_POLLS * config.UNLOAD_WAIT_SECONDS}s.")

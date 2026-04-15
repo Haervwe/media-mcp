@@ -4,32 +4,52 @@ import uuid
 import logging
 from pathlib import Path
 from typing import Annotated, Literal, Optional, Union
+from pydantic import BeforeValidator
 from .config import config
-from .utils import poll_ace_step_job, save_base64_to_file, resolve_input_to_base64
+from .utils import poll_ace_step_job, save_base64_to_file, resolve_input_to_base64, unload_models
 
 logger = logging.getLogger(__name__)
 
+def strip_quotes(v):
+    """Strips surrounding quotes from a string if present."""
+    if isinstance(v, str):
+        # Handle both single and double quotes
+        return v.strip("'\"")
+    return v
+
 # --- Types & Constants ---
-ImageFormat = Literal["square", "portrait", "landscape"]
+ImageFormat = Annotated[
+    Literal["square", "portrait", "landscape"],
+    BeforeValidator(strip_quotes)
+]
 IMAGE_RESOLUTIONS = {
-    "square": "1440x1440",
-    "portrait": "1088x1920",
-    "landscape": "1920x1088"
+    "square": "1024x1024",
+    "portrait": "896x1536",
+    "landscape": "1536x896"
 }
 
 # 50+ languages supported by ACE Step
-VocalLanguage = Literal[
-    "en", "zh", "ja", "ko", "es", "fr", "de", "it", "pt", "ru",
-    "hi", "bn", "ar", "tr", "th", "vi", "sv", "nl", "pl", "he"
+VocalLanguage = Annotated[
+    Literal[
+        "en", "zh", "ja", "ko", "es", "fr", "de", "it", "pt", "ru",
+        "hi", "bn", "ar", "tr", "th", "vi", "sv", "nl", "pl", "he"
+    ],
+    BeforeValidator(strip_quotes)
 ]
 
-MusicKey = Literal[
-    "C Major", "C# Major", "D Major", "D# Major", "E Major", "F Major", "F# Major", "G Major", "G# Major", "A Major", "A# Major", "B Major",
-    "C Minor", "C# Minor", "D Minor", "D# Minor", "E Minor", "F Minor", "F# Minor", "G Minor", "G# Minor", "A Minor", "A# Minor", "B Minor",
-    ""
+MusicKey = Annotated[
+    Literal[
+        "C Major", "C# Major", "D Major", "D# Major", "E Major", "F Major", "F# Major", "G Major", "G# Major", "A Major", "A# Major", "B Major",
+        "C Minor", "C# Minor", "D Minor", "D# Minor", "E Minor", "F Minor", "F# Minor", "G Minor", "G# Minor", "A Minor", "A# Minor", "B Minor",
+        ""
+    ],
+    BeforeValidator(strip_quotes)
 ]
 
-TimeSignature = Literal["2", "3", "4", "5", "6", ""]
+TimeSignature = Annotated[
+    Literal["2", "3", "4", "5", "6", ""],
+    BeforeValidator(strip_quotes)
+]
 
 class MediaClient:
     def __init__(self):
@@ -68,46 +88,69 @@ class MediaClient:
 
     async def edit_image(
         self,
-        image: Annotated[str, "Local file path or base64-encoded source image"],
+        images: Annotated[Union[str, list[str]], "One or up to 3 images (base + references)"],
         prompt: Annotated[str, "Description of the changes or the target image"],
         format: Optional[Annotated[ImageFormat, "Image aspect ratio/format"]] = "square"
     ) -> Path:
-        """Calls OpenAI-compatible image edits endpoint."""
+        """Calls OpenAI-compatible image edits endpoint for stable-diffusion.cpp."""
         resolution = IMAGE_RESOLUTIONS.get(format, "1440x1440")
         
-        # Resolve input (path or b64) to base64
-        image_b64 = resolve_input_to_base64(image)
-
-        async with httpx.AsyncClient(timeout=config.REQUEST_TIMEOUT) as client:
-            # Save b64 to file to send as multipart (API requires file)
-            temp_image = save_base64_to_file(image_b64, prefix="edit_source")
+        # Ensure images is a list
+        if isinstance(images, str):
+            image_list = [images]
+        else:
+            image_list = images
             
-            files = {
-                "image": open(temp_image, "rb")
-            }
-            data = {
-                "prompt": prompt,
-                "model": config.IMAGE_MODEL,
-                "n": "1",
-                "size": resolution,
-                "response_format": "b64_json"
-            }
+        if not image_list:
+            raise ValueError("No images provided for editing")
+        if len(image_list) > 3:
+            raise ValueError("Too many images provided. Maximum is 3 (1 base + 2 references).")
+        
+        temp_paths = []
+        try:
+            # Resolve all inputs to temporary files
+            for idx, img_input in enumerate(image_list):
+                img_b64 = resolve_input_to_base64(img_input)
+                prefix = "edit_source" if idx == 0 else f"edit_ref_{idx}"
+                temp_paths.append(save_base64_to_file(img_b64, prefix=prefix))
             
-            try:
-                response = await client.post(
-                    f"{config.IMAGE_BASE_URL}/v1/images/edits",
-                    data=data,
-                    files=files,
-                    headers=self.headers
-                )
-                response.raise_for_status()
-                result_data = response.json()
-                b64_result = result_data["data"][0]["b64_json"]
-                return save_base64_to_file(b64_result, prefix="edited_img")
-            finally:
-                files["image"].close()
-                if os.path.exists(temp_image):
-                    os.remove(temp_image)
+            async with httpx.AsyncClient(timeout=config.REQUEST_TIMEOUT) as client:
+                # Prepare multipart files with indexed keys (image, image1, image2)
+                # This matches the expected pattern for stable-diffusion.cpp multi-image edits
+                files = {}
+                opened_files = []
+                for idx, path in enumerate(temp_paths):
+                    field_name = "image" if idx == 0 else f"image{idx}"
+                    f = open(path, "rb")
+                    opened_files.append(f)
+                    files[field_name] = f
+                
+                data = {
+                    "prompt": prompt,
+                    "model": config.IMAGE_MODEL,
+                    "n": "1",
+                    "size": resolution,
+                    "response_format": "b64_json"
+                }
+                
+                try:
+                    response = await client.post(
+                        f"{config.IMAGE_BASE_URL}/v1/images/edits",
+                        data=data,
+                        files=files,
+                        headers=self.headers
+                    )
+                    response.raise_for_status()
+                    result_data = response.json()
+                    b64_result = result_data["data"][0]["b64_json"]
+                    return save_base64_to_file(b64_result, prefix="edited_img")
+                finally:
+                    for f in opened_files:
+                        f.close()
+        finally:
+            for path in temp_paths:
+                if path.exists():
+                    os.remove(path)
 
 class MusicClient:
     def __init__(self):
@@ -142,6 +185,9 @@ class MusicClient:
         time_signature: Optional[Annotated[TimeSignature, "Rhythmic time signature"]] = ""
     ) -> Path:
         """Calls ACE Step UI generate endpoint."""
+        # Unload models to free VRAM
+        await unload_models()
+
         async with httpx.AsyncClient(timeout=config.REQUEST_TIMEOUT) as client:
             await self._ensure_token(client)
             
@@ -199,6 +245,9 @@ class MusicClient:
         time_signature: Optional[Annotated[TimeSignature, "Rhythmic time signature"]] = ""
     ) -> Path:
         """Handles cover song generation flow: upload then generate."""
+        # Unload models to free VRAM
+        await unload_models()
+        
         async with httpx.AsyncClient(timeout=config.REQUEST_TIMEOUT) as client:
             await self._ensure_token(client)
             
