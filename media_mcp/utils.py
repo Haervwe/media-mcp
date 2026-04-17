@@ -1,4 +1,5 @@
 import os
+import re
 import asyncio
 import base64
 import uuid
@@ -11,6 +12,31 @@ from fastmcp.tools.base import ToolResult
 from .config import config
 
 logger = logging.getLogger(__name__)
+
+def sanitize_filename(filename: str) -> str:
+    """Removes filesystem-unsafe characters from a string."""
+    # Replace non-alphanumeric (except underscore, hyphen, and dot) with underscores
+    sanitized = re.sub(r'[^\w\-.]', '_', filename)
+    # Remove leading/trailing underscores and dots
+    return sanitized.strip('._')
+
+def get_unique_path(base_dir: Path, filename: str, extension: str) -> Path:
+    """
+    Returns a unique file path.
+    If the file exists, appends a short UUID.
+    """
+    base_name = sanitize_filename(filename)
+    if not extension.startswith("."):
+        extension = f".{extension}"
+    
+    file_path = base_dir / f"{base_name}{extension}"
+    
+    if file_path.exists():
+        # Append short UUID if duplicate
+        short_id = uuid.uuid4().hex[:8]
+        file_path = base_dir / f"{base_name}_{short_id}{extension}"
+        
+    return file_path
 
 def save_base64_to_file(b64_string: str, prefix: str = "input") -> Path:
     """Saves a base64 string to a temporary file in the assets directory."""

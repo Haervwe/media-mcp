@@ -90,7 +90,8 @@ async def generate_song(
     tags: Optional[Annotated[str, "Optional music tags (instruments, mood, tempo)"]] = "",
     language: Optional[Annotated[VocalLanguage, "Vocal language"]] = "en",
     key: Optional[Annotated[MusicKey, "Musical key and scale"]] = "",
-    time_signature: Optional[Annotated[TimeSignature, "Rhythmic time signature (2, 3, 4, 5, 6)"]] = ""
+    time_signature: Optional[Annotated[TimeSignature, "Rhythmic time signature (2, 3, 4, 5, 6)"]] = "",
+    title: Optional[Annotated[str, "Optional title for the song (used as filename)"]] = None
 ) -> ToolResult:
     """
     Generate a complete song (music + vocals) using the ACE Step 1.5 model.
@@ -102,13 +103,13 @@ async def generate_song(
       For instrumental, use `[inst]` or describe instruments as tags.
     - **Languages**: Supports 50+ languages including EN, ZH, JA. For Japanese, use Katakana.
     """
-    logger.info(f"Generating song. Prompt: {prompt}, Language: {language}, Key: {key}, TS: {time_signature}")
+    logger.info(f"Generating song. Prompt: {prompt}, Language: {language}, Key: {key}, TS: {time_signature}, Title: {title}")
     try:
-        path = await music_client.generate_song(prompt, lyrics, language=language, tags=tags, key=key, time_signature=time_signature)
+        path = await music_client.generate_song(prompt, lyrics, language=language, tags=tags, key=key, time_signature=time_signature, title=title)
         return format_output(
             path, 
-            {"prompt": prompt, "lyrics": lyrics, "tags": tags, "language": language, "key": key, "time_signature": time_signature},
-            message=f"Successfully generated song: {prompt[:50]}...",
+            {"prompt": prompt, "lyrics": lyrics, "tags": tags, "language": language, "key": key, "time_signature": time_signature, "title": title},
+            message=f"Successfully generated song: {title if title else prompt[:50]}...",
             response_format=get_response_format(ctx)
         )
     except Exception as e:
@@ -125,7 +126,8 @@ async def generate_cover(
     lyrics: Optional[Annotated[str, "Optional lyrics to sing"]] = "",
     language: Optional[Annotated[VocalLanguage, "Vocal language"]] = "en",
     key: Optional[Annotated[MusicKey, "Musical key and scale"]] = "",
-    time_signature: Optional[Annotated[TimeSignature, "Rhythmic time signature (2, 3, 4, 5, 6)"]] = ""
+    time_signature: Optional[Annotated[TimeSignature, "Rhythmic time signature (2, 3, 4, 5, 6)"]] = "",
+    title: Optional[Annotated[str, "Optional title for the cover (used as filename)"]] = None
 ) -> ToolResult:
     """
     Generate a cover version of an existing audio file (voice conversion/style swap) using ACE Step 1.5.
@@ -136,19 +138,19 @@ async def generate_cover(
     - **Tags**: Specify instruments and genre for the new version.
     - **Lyrics**: Optionally provide lyrics if you want to refine the vocal delivery.
     """
-    logger.info(f"Generating cover version. Style: {style_prompt}, Language: {language}, Key: {key}")
+    logger.info(f"Generating cover version. Style: {style_prompt}, Language: {language}, Key: {key}, Title: {title}")
     try:
         path = await music_client.generate_cover(
             audio, style_prompt, strength=strength, tags=tags, lyrics=lyrics, 
-            language=language, key=key, time_signature=time_signature
+            language=language, key=key, time_signature=time_signature, title=title
         )
         return format_output(
             path, 
             {
                 "style": style_prompt, "action": "cover", "strength": strength, 
-                "tags": tags, "lyrics": lyrics, "language": language, "key": key, "time_signature": time_signature
+                "tags": tags, "lyrics": lyrics, "language": language, "key": key, "time_signature": time_signature, "title": title
             },
-            message=f"Successfully generated cover in style: {style_prompt[:50]}...",
+            message=f"Successfully generated cover: {title if title else style_prompt[:50]}...",
             response_format=get_response_format(ctx)
         )
     except Exception as e:

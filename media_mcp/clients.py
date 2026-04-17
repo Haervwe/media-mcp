@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Annotated, Literal, Optional, Union
 from pydantic import BeforeValidator
 from .config import config
-from .utils import poll_ace_step_job, save_base64_to_file, resolve_input_to_base64, unload_models
+from .utils import poll_ace_step_job, save_base64_to_file, resolve_input_to_base64, unload_models, get_unique_path, sanitize_filename
 
 logger = logging.getLogger(__name__)
 
@@ -183,7 +183,8 @@ class MusicClient:
         language: Optional[Annotated[VocalLanguage, "Vocal language"]] = "en",
         tags: Optional[Annotated[str, "Optional music tags (instruments, mood, tempo)"]] = "",
         key: Optional[Annotated[MusicKey, "Musical key and scale"]] = "",
-        time_signature: Optional[Annotated[TimeSignature, "Rhythmic time signature"]] = ""
+        time_signature: Optional[Annotated[TimeSignature, "Rhythmic time signature"]] = "",
+        title: Optional[str] = None
     ) -> Path:
         """Calls ACE Step UI generate endpoint."""
         # Unload models to free VRAM
@@ -201,7 +202,7 @@ class MusicClient:
                 "vocalLanguage": language,
                 "keyScale": key,
                 "timeSignature": time_signature,
-                "title": f"Song {uuid.uuid4().hex[:8]}"
+                "title": title if title else f"Song {uuid.uuid4().hex[:8]}"
             }
             
             response = await client.post(
@@ -227,8 +228,9 @@ class MusicClient:
             audio_response.raise_for_status()
             
             # Save to assets
-            filename = f"song_{uuid.uuid4().hex}.wav"
-            file_path = config.ASSETS_DIR / filename
+            final_title = title if title else f"song_{uuid.uuid4().hex[:8]}"
+            file_path = get_unique_path(config.ASSETS_DIR, final_title, ".wav")
+            
             with open(file_path, "wb") as f:
                 f.write(audio_response.content)
             
@@ -243,7 +245,8 @@ class MusicClient:
         lyrics: Optional[Annotated[str, "Optional lyrics to sing"]] = "",
         language: Optional[Annotated[VocalLanguage, "Vocal language"]] = "en",
         key: Optional[Annotated[MusicKey, "Musical key and scale"]] = "",
-        time_signature: Optional[Annotated[TimeSignature, "Rhythmic time signature"]] = ""
+        time_signature: Optional[Annotated[TimeSignature, "Rhythmic time signature"]] = "",
+        title: Optional[str] = None
     ) -> Path:
         """Handles cover song generation flow: upload then generate."""
         # Unload models to free VRAM
@@ -318,7 +321,7 @@ class MusicClient:
                     "taskType": "text2music",
                     "thinking": False,
                     "timeSignature": time_signature,
-                    "title": f"Cover {uuid.uuid4().hex[:8]}",
+                    "title": title if title else f"Cover {uuid.uuid4().hex[:8]}",
                     "useAdg": False,
                     "useCotCaption": True,
                     "useCotLanguage": True,
@@ -346,8 +349,9 @@ class MusicClient:
                 )
                 audio_resp.raise_for_status()
                 
-                filename = f"cover_{uuid.uuid4().hex}.wav"
-                file_path = config.ASSETS_DIR / filename
+                final_title = title if title else f"cover_{uuid.uuid4().hex[:8]}"
+                file_path = get_unique_path(config.ASSETS_DIR, final_title, ".wav")
+                
                 with open(file_path, "wb") as f:
                     f.write(audio_resp.content)
                 
