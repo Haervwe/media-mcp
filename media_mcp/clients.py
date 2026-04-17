@@ -2,6 +2,7 @@ import httpx
 import os
 import uuid
 import logging
+import asyncio
 from pathlib import Path
 from typing import Annotated, Literal, Optional, Union
 from pydantic import BeforeValidator
@@ -176,6 +177,30 @@ class MusicClient:
             return {"Authorization": f"Bearer {self._token}"}
         return {}
 
+    async def _fetch_song_from_library(self, title: str, client: httpx.AsyncClient) -> Optional[str]:
+        """
+        Fetches the user's song library and looks for a song with the matching title.
+        Returns the resolved audio_url if found.
+        """
+        logger.info(f"Looking for song titled '{title}' in backend library...")
+        try:
+            resp = await client.get(f"{self.base_url}/api/songs", headers=self._get_headers())
+            resp.raise_for_status()
+            data = resp.json()
+            songs = data.get("songs", [])
+            
+            # Simple exact match or sanitized match
+            target = title.strip().lower()
+            for song in songs:
+                if song.get("title", "").strip().lower() == target:
+                    audio_url = song.get("audio_url")
+                    logger.info(f"Found match in library! Permanent URL: {audio_url}")
+                    return audio_url
+        except Exception as e:
+            logger.error(f"Failed to fetch songs from library: {e}")
+        
+        return None
+
     async def generate_song(
         self,
         prompt: Annotated[str, "Style, mood, and genre description of the song"],
@@ -221,11 +246,26 @@ class MusicClient:
             audio_url = result["audioUrls"][0]
             
             # Download the actual audio
-            audio_response = await client.get(
-                f"{self.base_url}{audio_url}",
-                headers=self._get_headers()
-            )
-            audio_response.raise_for_status()
+            try:
+                audio_response = await client.get(
+                    f"{self.base_url}{audio_url}",
+                    headers=self._get_headers()
+                )
+                audio_response.raise_for_status()
+            except httpx.HTTPStatusError as e:
+                if e.response.status_code == 404:
+                    logger.warning(f"Initial audio URL {audio_url} 404'd. Backend likely renaming file. Retrying via library lookup...")
+                    await asyncio.sleep(2) # Give backend time to finish move
+                    
+                    library_url = await self._fetch_song_from_library(payload["title"], client)
+                    if library_url:
+                        fetch_url = f"{self.base_url}{library_url}" if not library_url.startswith("http") else library_url
+                        audio_response = await client.get(fetch_url, headers=self._get_headers())
+                        audio_response.raise_for_status()
+                    else:
+                        raise
+                else:
+                    raise
             
             # Save to assets
             final_title = title if title else f"song_{uuid.uuid4().hex[:8]}"
@@ -343,11 +383,26 @@ class MusicClient:
                 result = await poll_ace_step_job(job_id, client, headers=self._get_headers())
                 audio_url = result["audioUrls"][0]
                 
-                audio_resp = await client.get(
-                    f"{self.base_url}{audio_url}",
-                    headers=self._get_headers()
-                )
-                audio_resp.raise_for_status()
+                try:
+                    audio_resp = await client.get(
+                        f"{self.base_url}{audio_url}",
+                        headers=self._get_headers()
+                    )
+                    audio_resp.raise_for_status()
+                except httpx.HTTPStatusError as e:
+                    if e.response.status_code == 404:
+                        logger.warning(f"Initial cover URL {audio_url} 404'd. Backend likely renaming file. Retrying via library lookup...")
+                        await asyncio.sleep(2)
+                        
+                        library_url = await self._fetch_song_from_library(payload["title"], client)
+                        if library_url:
+                            fetch_url = f"{self.base_url}{library_url}" if not library_url.startswith("http") else library_url
+                            audio_resp = await client.get(fetch_url, headers=self._get_headers())
+                            audio_resp.raise_for_status()
+                        else:
+                            raise
+                    else:
+                        raise
                 
                 final_title = title if title else f"cover_{uuid.uuid4().hex[:8]}"
                 file_path = get_unique_path(config.ASSETS_DIR, final_title, ".wav")

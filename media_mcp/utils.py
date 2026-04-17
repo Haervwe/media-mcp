@@ -188,7 +188,9 @@ async def poll_ace_step_job(job_id: str, client: httpx.AsyncClient, headers: dic
             
             status = data.get("status")
             if status == "succeeded":
-                return data.get("result")
+                result = data.get("result")
+                logger.info(f"Music generation job {job_id} succeeded. Result: {result}")
+                return result
             elif status == "failed":
                 error_msg = data.get("error", "Unknown generation error")
                 raise Exception(f"Music generation failed: {error_msg}")
