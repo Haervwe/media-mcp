@@ -30,12 +30,16 @@ def get_response_format(ctx: Context) -> str:
 @mcp.tool()
 async def generate_image(
     ctx: Context,
-    prompt: Annotated[str, "Detailed description of the image to generate"],
-    format: Optional[Annotated[ImageFormat, "Image format (square, portrait, landscape)"]] = "square"
+    prompt: str,
+    format: ImageFormat = "square"
 ) -> ToolResult:
     """
     Creates visually stunning images with text prompts using the local Flux text-to-image model.
     If the user prompt is too general or lacking, embellish it to generate a better illustration.
+
+    Args:
+        prompt: Detailed description of the image to generate
+        format: Image format (square, portrait, landscape)
     """
     logger.info(f"Generating image: {prompt} (format: {format})")
     try:
@@ -53,9 +57,9 @@ async def generate_image(
 @mcp.tool()
 async def edit_image(
     ctx: Context,
-    images: Annotated[Union[str, list[str]], "One or up to 3 images (base + references). Provide as paths or base64."],
-    prompt: Annotated[str, "Description of the changes or the target image"],
-    format: Optional[Annotated[ImageFormat, "Image format (square, portrait, landscape)"]] = "square"
+    images: Union[str, list[str]],
+    prompt: str,
+    format: ImageFormat = "square"
 ) -> ToolResult:
     """
     Edits an existing image (image-to-image) using a text prompt and up to 3 reference images.
@@ -67,6 +71,7 @@ async def edit_image(
             - The FIRST image (index 0) is treated as the MAIN SUBJECT or base image to be edited.
             - Additional images will be used as supplementary context (style references, compositional guides).
         prompt: A detailed description of what the final image should look like or what edits should be made.
+        format: Image format (square, portrait, landscape)
     """
     logger.info(f"Editing image with prompt: {prompt} (format: {format})")
     try:
@@ -85,13 +90,13 @@ async def edit_image(
 @mcp.tool()
 async def generate_song(
     ctx: Context,
-    prompt: Annotated[str, "Style, mood, and genre description of the song"],
-    lyrics: Optional[Annotated[str, "Optional lyrics to sing"]] = "",
-    tags: Optional[Annotated[str, "Optional music tags (instruments, mood, tempo)"]] = "",
-    language: Optional[Annotated[VocalLanguage, "Vocal language"]] = "en",
-    key: Optional[Annotated[MusicKey, "Musical key and scale"]] = "",
-    time_signature: Optional[Annotated[TimeSignature, "Rhythmic time signature (2, 3, 4, 5, 6)"]] = "",
-    title: Optional[Annotated[str, "Optional title for the song (used as filename)"]] = None
+    prompt: str,
+    lyrics: str = "",
+    tags: str = "",
+    language: VocalLanguage = "en",
+    key: MusicKey = "",
+    time_signature: TimeSignature = "",
+    title: Optional[str] = None
 ) -> ToolResult:
     """
     Generate a complete song (music + vocals) using the ACE Step 1.5 model.
@@ -102,6 +107,15 @@ async def generate_song(
     - **Lyrics**: Use structure tags `[verse]`, `[chorus]`, `[bridge]` to guide the song arrangement.
       For instrumental, use `[inst]` or describe instruments as tags.
     - **Languages**: Supports 50+ languages including EN, ZH, JA. For Japanese, use Katakana.
+
+    Args:
+        prompt: Style, mood, and genre description of the song
+        lyrics: Optional lyrics to sing
+        tags: Optional music tags (instruments, mood, tempo)
+        language: Vocal language
+        key: Musical key and scale
+        time_signature: Rhythmic time signature (2, 3, 4, 5, 6)
+        title: Optional title for the song (used as filename)
     """
     logger.info(f"Generating song. Prompt: {prompt}, Language: {language}, Key: {key}, TS: {time_signature}, Title: {title}")
     try:
@@ -119,15 +133,15 @@ async def generate_song(
 @mcp.tool()
 async def generate_cover(
     ctx: Context,
-    audio: Annotated[str, "Local file path or base64-encoded source audio file (song)"],
-    style_prompt: Optional[Annotated[str, "Description of the target style or instructions"]] = "",
-    strength: Optional[Annotated[float, "Strength of the source audio influence (0.0 to 1.0)"]] = 0.7,
-    tags: Optional[Annotated[str, "Optional music tags for the cover style"]] = "",
-    lyrics: Optional[Annotated[str, "Optional lyrics to sing"]] = "",
-    language: Optional[Annotated[VocalLanguage, "Vocal language"]] = "en",
-    key: Optional[Annotated[MusicKey, "Musical key and scale"]] = "",
-    time_signature: Optional[Annotated[TimeSignature, "Rhythmic time signature (2, 3, 4, 5, 6)"]] = "",
-    title: Optional[Annotated[str, "Optional title for the cover (used as filename)"]] = None
+    audio: str,
+    style_prompt: str = "",
+    strength: float = 0.7,
+    tags: str = "",
+    lyrics: str = "",
+    language: VocalLanguage = "en",
+    key: MusicKey = "",
+    time_signature: TimeSignature = "",
+    title: Optional[str] = None
 ) -> ToolResult:
     """
     Generate a cover version of an existing audio file (voice conversion/style swap) using ACE Step 1.5.
@@ -137,6 +151,17 @@ async def generate_cover(
     - **Strength**: Controls how much of the original audio's structure (melody/rhythm) is preserved. 0.7 is a good default.
     - **Tags**: Specify instruments and genre for the new version.
     - **Lyrics**: Optionally provide lyrics if you want to refine the vocal delivery.
+
+    Args:
+        audio: Local file path or base64-encoded source audio file (song)
+        style_prompt: Description of the target style or instructions
+        strength: Strength of the source audio influence (0.0 to 1.0)
+        tags: Optional music tags for the cover style
+        lyrics: Optional lyrics to sing
+        language: Vocal language
+        key: Musical key and scale
+        time_signature: Rhythmic time signature (2, 3, 4, 5, 6)
+        title: Optional title for the cover (used as filename)
     """
     logger.info(f"Generating cover version. Style: {style_prompt}, Language: {language}, Key: {key}, Title: {title}")
     try:
