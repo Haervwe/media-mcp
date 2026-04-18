@@ -90,12 +90,12 @@ async def edit_image(
 @mcp.tool()
 async def generate_song(
     ctx: Context,
-    prompt: str,
-    lyrics: str = "",
-    tags: str = "",
+    tags: str ,
+    lyrics: str,
+    prompt: str ="",
     language: VocalLanguage = "en",
-    key: MusicKey = "",
-    time_signature: TimeSignature = "",
+    key: Optional[MusicKey] = None,
+    time_signature: Optional[TimeSignature] = None,
     title: Optional[str] = None
 ) -> ToolResult:
     """
@@ -109,11 +109,11 @@ async def generate_song(
     - **Languages**: Supports 50+ languages including EN, ZH, JA. For Japanese, use Katakana.
 
     Args:
-        prompt: Style, mood, and genre description of the song
-        lyrics: Optional lyrics to sing
+        lyrics: lyrics to sing or instrumental cues for the generation [heavy guitar solo]
         tags: Optional music tags (instruments, mood, tempo)
-        language: Vocal language
-        key: Musical key and scale
+        prompt: Style, mood, and genre description of the song in natural language
+        language: Vocal language (en, zh, ja, etc.)
+        key: Musical key and scale (e.g. C major, Ab minor, F# minor, etc.)
         time_signature: Rhythmic time signature (2, 3, 4, 5, 6)
         title: Optional title for the song (used as filename)
     """
@@ -134,13 +134,13 @@ async def generate_song(
 async def generate_cover(
     ctx: Context,
     audio: str,
-    style_prompt: str = "",
-    strength: float = 0.7,
     tags: str = "",
     lyrics: str = "",
+    style_prompt: str = "",
+    strength: float = 0.7,
     language: VocalLanguage = "en",
-    key: MusicKey = "",
-    time_signature: TimeSignature = "",
+    key: Optional[MusicKey] = None,
+    time_signature: Optional[TimeSignature] = None,
     title: Optional[str] = None
 ) -> ToolResult:
     """

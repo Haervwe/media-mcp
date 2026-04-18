@@ -41,14 +41,13 @@ VocalLanguage = Annotated[
 MusicKey = Annotated[
     Literal[
         "C Major", "C# Major", "D Major", "D# Major", "E Major", "F Major", "F# Major", "G Major", "G# Major", "A Major", "A# Major", "B Major",
-        "C Minor", "C# Minor", "D Minor", "D# Minor", "E Minor", "F Minor", "F# Minor", "G Minor", "G# Minor", "A Minor", "A# Minor", "B Minor",
-        ""
+        "C Minor", "C# Minor", "D Minor", "D# Minor", "E Minor", "F Minor", "F# Minor", "G Minor", "G# Minor", "A Minor", "A# Minor", "B Minor"
     ],
     BeforeValidator(strip_quotes)
 ]
 
 TimeSignature = Annotated[
-    Literal["2", "3", "4", "5", "6", ""],
+    Literal["2", "3", "4", "5", "6"],
     BeforeValidator(strip_quotes)
 ]
 
@@ -209,7 +208,13 @@ class MusicClient:
         tags: Optional[Annotated[str, "Optional music tags (instruments, mood, tempo)"]] = "",
         key: Optional[Annotated[MusicKey, "Musical key and scale"]] = "",
         time_signature: Optional[Annotated[TimeSignature, "Rhythmic time signature"]] = "",
-        title: Optional[str] = None
+        title: Optional[str] = None,
+        guidance_scale: Optional[float] = None,
+        inference_steps: Optional[int] = None,
+        lm_cfg_scale: Optional[float] = None,
+        lm_temperature: Optional[float] = None,
+        lm_top_p: Optional[float] = None,
+        shift: Optional[int] = None
     ) -> Path:
         """Calls ACE Step UI generate endpoint."""
         # Unload models to free VRAM
@@ -225,9 +230,19 @@ class MusicClient:
                 "lyrics": lyrics,
                 "instrumental": not bool(lyrics),
                 "vocalLanguage": language,
-                "keyScale": key,
-                "timeSignature": time_signature,
-                "title": title if title else f"Song {uuid.uuid4().hex[:8]}"
+                "keyScale": key if key is not None else "",
+                "timeSignature": time_signature if time_signature is not None else "",
+                "title": title if title else f"Song {uuid.uuid4().hex[:8]}",
+                "guidanceScale": guidance_scale if guidance_scale is not None else config.MUSIC_GUIDANCE_SCALE,
+                "inferenceSteps": inference_steps if inference_steps is not None else config.MUSIC_INFERENCE_STEPS,
+                "lmCfgScale": lm_cfg_scale if lm_cfg_scale is not None else config.MUSIC_LM_CFG_SCALE,
+                "lmTemperature": lm_temperature if lm_temperature is not None else config.MUSIC_LM_TEMPERATURE,
+                "lmTopP": lm_top_p if lm_top_p is not None else config.MUSIC_LM_TOP_P,
+                "shift": shift if shift is not None else config.MUSIC_SHIFT,
+                "audioFormat": "mp3",
+                "batchSize": 1,
+                "seed": -1,
+                "randomSeed": True
             }
             
             response = await client.post(
@@ -286,7 +301,13 @@ class MusicClient:
         language: Optional[Annotated[VocalLanguage, "Vocal language"]] = "en",
         key: Optional[Annotated[MusicKey, "Musical key and scale"]] = "",
         time_signature: Optional[Annotated[TimeSignature, "Rhythmic time signature"]] = "",
-        title: Optional[str] = None
+        title: Optional[str] = None,
+        guidance_scale: Optional[float] = None,
+        inference_steps: Optional[int] = None,
+        lm_cfg_scale: Optional[float] = None,
+        lm_temperature: Optional[float] = None,
+        lm_top_p: Optional[float] = None,
+        shift: Optional[int] = None
     ) -> Path:
         """Handles cover song generation flow: upload then generate."""
         # Unload models to free VRAM
@@ -333,21 +354,21 @@ class MusicClient:
                     "constrainedDecodingDebug": False,
                     "getLrc": False,
                     "getScores": False,
-                    "guidanceScale": 9,
+                    "guidanceScale": guidance_scale if guidance_scale is not None else config.MUSIC_GUIDANCE_SCALE,
                     "inferMethod": "ode",
-                    "inferenceSteps": 12,
+                    "inferenceSteps": inference_steps if inference_steps is not None else config.MUSIC_INFERENCE_STEPS,
                     "instruction": "Fill the audio semantic mask based on the given conditions:",
                     "instrumental": not bool(lyrics),
                     "isFormatCaption": False,
-                    "keyScale": key,
+                    "keyScale": key if key is not None else "",
                     "lmBackend": "pt",
                     "lmBatchChunkSize": 8,
-                    "lmCfgScale": 2.2,
+                    "lmCfgScale": lm_cfg_scale if lm_cfg_scale is not None else config.MUSIC_LM_CFG_SCALE,
                     "lmModel": "acestep-5Hz-lm-0.6B",
                     "lmNegativePrompt": "",
-                    "lmTemperature": 0.8,
+                    "lmTemperature": lm_temperature if lm_temperature is not None else config.MUSIC_LM_TEMPERATURE,
                     "lmTopK": 0,
-                    "lmTopP": 0.92,
+                    "lmTopP": lm_top_p if lm_top_p is not None else config.MUSIC_LM_TOP_P,
                     "lyrics": lyrics,
                     "randomSeed": True,
                     "referenceAudioTitle": audio_path.name,
@@ -356,11 +377,11 @@ class MusicClient:
                     "repaintingStart": 0,
                     "scoreScale": 0.5,
                     "seed": -1,
-                    "shift": 3,
+                    "shift": shift if shift is not None else config.MUSIC_SHIFT,
                     "style": f"{tags}, {style_prompt}" if tags else style_prompt,
                     "taskType": "text2music",
                     "thinking": False,
-                    "timeSignature": time_signature,
+                    "timeSignature": time_signature if time_signature is not None else "",
                     "title": title if title else f"Cover {uuid.uuid4().hex[:8]}",
                     "useAdg": False,
                     "useCotCaption": True,

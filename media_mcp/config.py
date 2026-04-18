@@ -15,7 +15,14 @@ class Config:
     MUSIC_BASE_URL = os.getenv("MUSIC_API_BASE_URL", "http://localhost:3005")
     MUSIC_API_KEY = os.getenv("MUSIC_API_KEY", "")
     MUSIC_JWT_SECRET = os.getenv("MUSIC_JWT_SECRET", "")
-    MUSIC_DEFAULT_DURATION = int(os.getenv("MUSIC_DEFAULT_DURATION", "120"))
+
+    # --- Music Generation Parameters ---
+    MUSIC_GUIDANCE_SCALE = float(os.getenv("MUSIC_GUIDANCE_SCALE", "9"))
+    MUSIC_INFERENCE_STEPS = int(os.getenv("MUSIC_INFERENCE_STEPS", "12"))
+    MUSIC_LM_CFG_SCALE = float(os.getenv("MUSIC_LM_CFG_SCALE", "2.2"))
+    MUSIC_LM_TEMPERATURE = float(os.getenv("MUSIC_LM_TEMPERATURE", "0.8"))
+    MUSIC_LM_TOP_P = float(os.getenv("MUSIC_LM_TOP_P", "0.92"))
+    MUSIC_SHIFT = int(os.getenv("MUSIC_SHIFT", "3"))
 
     # --- Asset Storage ---
     ASSETS_DIR = Path(os.getenv("ASSETS_DIR", "/tmp/media-mcp-assets"))
