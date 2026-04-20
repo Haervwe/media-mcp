@@ -202,10 +202,10 @@ class MusicClient:
 
     async def generate_song(
         self,
-        prompt: Annotated[str, "Style, mood, and genre description of the song"],
-        lyrics: Optional[Annotated[str, "Optional lyrics to sing"]] = "",
+        prompt: Annotated[str, "Detailed natural language description of style, mood, and genre (e.g., 'A melancholic lofi track with a soft female vocal')."],
+        lyrics: Optional[Annotated[str, "Optional lyrics to sing. Use structure tags like [Verse], [Chorus: Anthemic], [Outro] to guide arrangement and performance."]] = "",
         language: Optional[Annotated[VocalLanguage, "Vocal language"]] = "en",
-        tags: Optional[Annotated[str, "Optional music tags (instruments, mood, tempo)"]] = "",
+        tags: Optional[Annotated[str, "Specific music tags such as genres, instruments, or production styles (e.g., 'lofi, piano, 80s, reverb')."]] = "",
         key: Optional[Annotated[MusicKey, "Musical key and scale"]] = "",
         time_signature: Optional[Annotated[TimeSignature, "Rhythmic time signature"]] = "",
         title: Optional[str] = None,
@@ -223,10 +223,11 @@ class MusicClient:
         async with httpx.AsyncClient(timeout=config.REQUEST_TIMEOUT) as client:
             await self._ensure_token(client)
             
+            combined_prompt = f"{tags}, {prompt}" if tags else prompt
             payload = {
                 "taskType": "text2music",
-                "songDescription": prompt,
-                "style": f"{tags}, {prompt}" if tags else prompt,
+                "songDescription": combined_prompt,
+                "style": combined_prompt,
                 "lyrics": lyrics,
                 "instrumental": not bool(lyrics),
                 "vocalLanguage": language,
@@ -294,10 +295,10 @@ class MusicClient:
     async def generate_cover(
         self,
         audio: Annotated[str, "Local file path or base64-encoded source audio file (song)"],
-        style_prompt: Optional[Annotated[str, "Description of the target style or instructions"]] = "",
+        style_prompt: Optional[Annotated[str, "Description of the target style or instructions (e.g., 'Transform into a dark synthwave version')."]] = "",
         strength: Optional[Annotated[float, "Strength of the source audio influence (0.0 to 1.0)"]] = 0.7,
-        tags: Optional[Annotated[str, "Optional music tags for the cover style"]] = "",
-        lyrics: Optional[Annotated[str, "Optional lyrics to sing"]] = "",
+        tags: Optional[Annotated[str, "Optional music tags for the cover style (e.g., 'jazz, saxophone, night')."]] = "",
+        lyrics: Optional[Annotated[str, "Optional lyrics for the cover. Supports structure tags like [Chorus]."]] = "",
         language: Optional[Annotated[VocalLanguage, "Vocal language"]] = "en",
         key: Optional[Annotated[MusicKey, "Musical key and scale"]] = "",
         time_signature: Optional[Annotated[TimeSignature, "Rhythmic time signature"]] = "",
@@ -378,6 +379,7 @@ class MusicClient:
                     "scoreScale": 0.5,
                     "seed": -1,
                     "shift": shift if shift is not None else config.MUSIC_SHIFT,
+                    "songDescription": f"{tags}, {style_prompt}" if tags else style_prompt,
                     "style": f"{tags}, {style_prompt}" if tags else style_prompt,
                     "taskType": "text2music",
                     "thinking": False,

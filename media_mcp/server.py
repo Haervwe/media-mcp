@@ -109,9 +109,9 @@ async def generate_song(
     - **Languages**: Supports 50+ languages including EN, ZH, JA. For Japanese, use Katakana.
 
     Args:
-        lyrics: lyrics to sing or instrumental cues for the generation [heavy guitar solo]
-        tags: Optional music tags (instruments, mood, tempo)
-        prompt: Style, mood, and genre description of the song in natural language
+        tags: Specific music tags such as genres, instruments, or production styles (e.g., 'lofi, piano, 80s, reverb').
+        lyrics: lyrics to sing or instrumental cues for the generation [heavy guitar solo]. Supports structure tags like [Verse], [Chorus: Anthemic], [Outro] to guide arrangement.
+        prompt: Detailed natural language description of style, mood, and genre (e.g., 'A melancholic lofi track with a soft female vocal').
         language: Vocal language (en, zh, ja, etc.)
         key: Musical key and scale (e.g. C major, Ab minor, F# minor, etc.)
         time_signature: Rhythmic time signature (2, 3, 4, 5, 6)
@@ -154,10 +154,10 @@ async def generate_cover(
 
     Args:
         audio: Local file path or base64-encoded source audio file (song)
-        style_prompt: Description of the target style or instructions
-        strength: Strength of the source audio influence (0.0 to 1.0)
-        tags: Optional music tags for the cover style
-        lyrics: Optional lyrics to sing
+        tags: Optional music tags for the cover style (e.g., 'jazz, saxophone, night').
+        lyrics: Optional lyrics for the cover. Supports structure tags like [Chorus].
+        style_prompt: Description of the target style or instructions (e.g., 'Transform into a dark synthwave version').
+        strength: Strength of the source audio influence (0.0 to 1.0). 0.7 is a good default.
         language: Vocal language
         key: Musical key and scale
         time_signature: Rhythmic time signature (2, 3, 4, 5, 6)
