@@ -24,9 +24,9 @@ ImageFormat = Annotated[
     BeforeValidator(strip_quotes)
 ]
 IMAGE_RESOLUTIONS = {
-    "square": "1024x1024",
-    "portrait": "896x1536",
-    "landscape": "1536x896"
+    "square": config.IMAGE_SIZE_SQUARE,
+    "portrait": config.IMAGE_SIZE_PORTRAIT,
+    "landscape": config.IMAGE_SIZE_LANDSCAPE
 }
 
 # 50+ languages supported by ACE Step

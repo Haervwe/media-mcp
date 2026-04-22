@@ -10,6 +10,9 @@ class Config:
     IMAGE_BASE_URL = os.getenv("IMAGE_API_BASE_URL", "http://localhost:4134")
     IMAGE_API_KEY = os.getenv("IMAGE_API_KEY", "")
     IMAGE_MODEL = os.getenv("IMAGE_MODEL", "flux-klein")
+    IMAGE_SIZE_SQUARE = os.getenv("IMAGE_SIZE_SQUARE", "1024x1024")
+    IMAGE_SIZE_PORTRAIT = os.getenv("IMAGE_SIZE_PORTRAIT", "896x1536")
+    IMAGE_SIZE_LANDSCAPE = os.getenv("IMAGE_SIZE_LANDSCAPE", "1536x896")
 
     # --- Music Generation (ACE Step CPP UI) ---
     MUSIC_BASE_URL = os.getenv("MUSIC_API_BASE_URL", "http://localhost:3005")
